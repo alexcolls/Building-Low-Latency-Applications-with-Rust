@@ -272,3 +272,206 @@ fn main() {
   });
   handle.join().unwrap();
 }
+
+/* Concurrency Primitives: Counting with Mutex */
+
+use std::sync::Mutex;
+use std::thread;
+
+fn main() {
+  let data = Mutex::new(0);
+  let handles: Vec<_> = (0..10)
+    .map(|_| {
+      let data = data.clone();
+      thread::spawn(move || {
+        let mut num = data.lock().unwrap();
+        *num += 1; // Safely increment the shared counter
+      })
+    })
+    .collect();
+  for handle in handles {
+    handle.join().unwrap();
+  }
+  println!("Final count: {}", *data.lock().unwrap());
+}
+
+/* Combining Arc and Mutex */
+
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+fn main() {
+  let data = Arc::new(Mutex::new(0));
+  let handles: Vec<_> = (0..10)
+    .map(|_| {
+      let data = Arc::clone(&data);
+      thread::spawn(move || {
+        let mut num = data.lock().unwrap();
+        *num += 1; // Safely increment shared data
+      })
+    })
+    .collect();
+  for handle in handles {
+    handle.join().unwrap();
+  }
+  println!("Final count: {}", *data.lock().unwrap());
+}
+
+/* Using Channels for Message Passing */
+
+use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+  let (tx, rx) = mpsc::channel();
+  let handle = thread::spawn(move || {
+    tx.send("Hello from the thread").unwrap(); // Send a message
+  });
+  handle.join().unwrap();
+  let message = rx.recv().unwrap(); // Receive the message
+  println!("Main thread received: {}", message);
+}
+
+/* Multiple Producers */
+
+use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+  let (tx, rx) = mpsc::channel();
+  for i in 0..5 {
+    let tx_clone = tx.clone();
+    thread::spawn(move || {
+      tx_clone.send(format!("Message {}", i)).unwrap();
+    });
+  }
+  drop(tx); // Close the original sender to signal the end of messages
+  for received in rx {
+    println!("Received: {}", received);
+  }
+}
+
+/* Safe Data Sharing with Mutex */
+
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+fn main() {
+  let data = Arc::new(Mutex::new(0));
+  let handles: Vec<_> = (0..10)
+    .map(|_| {
+      let data = Arc::clone(&data);
+      thread::spawn(move || {
+        let mut num = data.lock().unwrap();
+        *num += 1;
+      })
+    })
+    .collect();
+  for handle in handles {
+    handle.join().unwrap();
+  }
+  println!("Final count: {}", *data.lock().unwrap());
+}
+
+/* Catching Thread Safety Errors at Compile Time */
+
+use std::sync::Arc;
+
+fn main() {
+  let data = Arc::new(42);
+  let handle = std::thread::spawn(move || {
+    println!("Thread sees: {}", data);
+  });
+  // println!("Main thread sees: {}", data); // Compile-time error: `data` moved
+  handle.join().unwrap();
+}
+
+/* Explicit Synchronization with Mutex */
+
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+fn main() {
+  let data = Arc::new(Mutex::new(vec![1, 2, 3]));
+  let data_clone = Arc::clone(&data);
+  let handle = thread::spawn(move || {
+    let mut locked_data = data_clone.lock().unwrap();
+    locked_data.push(4); // Explicitly synchronized access
+  });
+  handle.join().unwrap();
+  println!("Final data: {:?}", data.lock().unwrap());
+}
+
+/* Message Passing for Concurrency */
+
+use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+  let (tx, rx) = mpsc::channel();
+  thread::spawn(move || {
+    tx.send("Hello from thread").unwrap(); // Message-passing instead of shared state
+  });
+  let message = rx.recv().unwrap();
+  println!("Received: {}", message);
+}
+
+/* The Problem with Thread-Based I/O */
+
+use std::net::TcpListener;
+use std::io::{Read, Write};
+
+fn main() {
+  let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
+  for stream in listener.incoming() {
+    let mut stream = stream.unwrap();
+    let mut buffer = [0; 1024];
+    stream.read(&mut buffer).unwrap();
+    stream.write_all(b"HTTP/1.1 200 OK\r\n\r\nHello, world!").unwrap();
+  }
+}
+
+/* Rust's Asynchronous Model: Futures */
+
+pub trait Future {
+  type Output;
+
+  fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output>;
+}
+
+/* Rust's Asynchronous Model: Aync Functions */
+
+async fn fetch_data() -> String {
+  "Hello, async!".to_string()
+}
+
+/* Rust's Asynchronous Model: Await */
+
+async fn main_task() {
+  let data = fetch_data().await;
+  println!("{}", data);
+}
+
+/* Building an Asynchronous Server */
+
+use tokio::net::TcpListener;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+#[tokio::main]
+async fn main() {
+  let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+  loop {
+    let (mut socket, _) = listener.accept().await.unwrap();
+    tokio::spawn(async move {
+      let mut buffer = [0; 1024];
+      socket.read(&mut buffer).await.unwrap();
+      socket.write_all(b"HTTP/1.1 200 OK\r\n\r\nHello, async world!").await.unwrap();
+    });
+  }
+}
+
+/* Lifetimes in async */
+
+async fn example(data: &str) {
+  println!("{}", data);
+}
